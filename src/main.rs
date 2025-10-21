@@ -144,27 +144,29 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                 }
             });
 
-            for task in m.tasks.iter().rev() {
-                ui.horizontal(|ui| {
-                    let mut checked = task.done;
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for task in m.tasks.iter().rev() {
+                    ui.horizontal(|ui| {
+                        let mut checked = task.done;
 
-                    let text = if checked {
-                        RichText::new(&task.task_text).strikethrough().weak()
-                    } else {
-                        RichText::new(&task.task_text)
-                    };
+                        let text = if checked {
+                            RichText::new(&task.task_text).strikethrough().weak()
+                        } else {
+                            RichText::new(&task.task_text)
+                        };
 
-                    let check_response = ui.checkbox(&mut checked, text);
+                        let check_response = ui.checkbox(&mut checked, text);
 
-                    if check_response.changed() {
-                        tx.push(Msg::CheckBox(task.task_id, checked));
-                    }
+                        if check_response.changed() {
+                            tx.push(Msg::CheckBox(task.task_id, checked));
+                        }
 
-                    if checked && ui.button("🗑").clicked() {
-                        tx.push(Msg::Delete(task.task_id));
-                    }
-                });
-            }
+                        if checked && ui.button("🗑").clicked() {
+                            tx.push(Msg::Delete(task.task_id));
+                        }
+                    });
+                }
+            });
         });
     });
 }
