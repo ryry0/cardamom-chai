@@ -1,10 +1,9 @@
 use eframe::egui::{self, RichText};
-
-type Id = usize;
+use uuid::Uuid;
 
 #[derive(Default)]
 struct Task {
-    task_id: Id,
+    task_id: Uuid,
     task_text: String,
     done: bool,
 }
@@ -18,7 +17,8 @@ struct Model {
 enum Msg {
     TextInput(String),
     Add,
-    CheckBox(Id, bool),
+    CheckBox(Uuid, bool),
+    Delete(Uuid),
 }
 
 fn init() -> Model {
@@ -36,12 +36,15 @@ fn update(m: Model, msg: Msg) -> Model {
         Msg::Add => {
             let mut tasks = m.tasks;
             tasks.push(Task {
-                task_id: tasks.len(),
+                task_id: Uuid::new_v4(),
                 task_text: m.add_task_text_box.clone(),
                 done: false,
             });
 
-            Model { tasks, ..m }
+            Model {
+                tasks,
+                add_task_text_box: "".to_string(),
+            }
         }
 
         Msg::CheckBox(id, done) => {
@@ -50,6 +53,14 @@ fn update(m: Model, msg: Msg) -> Model {
                 task.done = done;
             }
 
+            Model { tasks, ..m }
+        }
+
+        Msg::Delete(id) => {
+            let mut tasks = m.tasks;
+            if let Some(task) = tasks.iter().position(|t| t.task_id == id) {
+                tasks.remove(task);
+            }
             Model { tasks, ..m }
         }
     }
@@ -66,35 +77,46 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.heading("Chai Task");
         ui.vertical(|ui| {
-            ui.label("Add a task: ");
             ui.horizontal(|ui| {
                 let mut add_task_text_box = m.add_task_text_box.clone();
-                let response = ui.text_edit_singleline(&mut add_task_text_box);
+                let text_edit_id = ui.make_persistent_id("add_task_text_box");
+
+                let response = ui.add(
+                    egui::TextEdit::singleline(&mut add_task_text_box)
+                        .hint_text("Add a task...")
+                        .id(text_edit_id),
+                );
+
                 if response.changed() {
                     tx.push(Msg::TextInput(add_task_text_box));
                 }
 
                 if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     tx.push(Msg::Add);
-                }
-
-                if ui.button("add").clicked() {
-                    tx.push(Msg::Add);
+                    ui.memory_mut(|mem| mem.request_focus(text_edit_id));
                 }
             });
 
             for task in m.tasks.iter().rev() {
-                let mut checked = task.done;
+                ui.horizontal(|ui| {
+                    let mut checked = task.done;
 
-                let text = if checked {
-                    RichText::new(&task.task_text).strikethrough().weak()
-                } else {
-                    RichText::new(&task.task_text)
-                };
+                    let text = if checked {
+                        RichText::new(&task.task_text).strikethrough().weak()
+                    } else {
+                        RichText::new(&task.task_text)
+                    };
 
-                if ui.checkbox(&mut checked, text).changed() {
-                    tx.push(Msg::CheckBox(task.task_id, checked));
-                }
+                    let check_response = ui.checkbox(&mut checked, text);
+
+                    if check_response.changed() {
+                        tx.push(Msg::CheckBox(task.task_id, checked));
+                    }
+
+                    if checked && ui.button("🗑").clicked() {
+                        tx.push(Msg::Delete(task.task_id));
+                    }
+                });
             }
         });
     });

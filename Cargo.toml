@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 chai-tea = { path = "../chai-tea" }
 eframe = "0.33.0"
+uuid = { version = "1.18.1", features = ["v4", "serde"] }
