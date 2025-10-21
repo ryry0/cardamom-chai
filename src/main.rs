@@ -87,7 +87,7 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                 let mut checked = task.done;
 
                 let text = if checked {
-                    RichText::new(&task.task_text).strikethrough()
+                    RichText::new(&task.task_text).strikethrough().weak()
                 } else {
                     RichText::new(&task.task_text)
                 };
