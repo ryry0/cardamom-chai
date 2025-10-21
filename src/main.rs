@@ -1,8 +1,22 @@
+//use async_trait::async_trait;
 use eframe::egui::{self, RichText};
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use uuid::Uuid;
 
-#[derive(Default)]
-struct Task {
+/*
+#[async_trait]
+pub trait Storage: Send + Sync {
+    async fn add(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
+    async fn update(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
+    async fn delete(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
+    async fn list(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
+    async fn get(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
+}
+*/
+
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub struct Task {
     task_id: Uuid,
     task_text: String,
     done: bool,
@@ -10,6 +24,7 @@ struct Task {
 
 #[derive(Default)]
 struct Model {
+    path: PathBuf,
     add_task_text_box: String,
     tasks: Vec<Task>,
 }
@@ -19,19 +34,33 @@ enum Msg {
     Add,
     CheckBox(Uuid, bool),
     Delete(Uuid),
+    //TasksLoaded(Vec<Task>),
 }
 
 fn init() -> Model {
-    Model::default()
+    let path = "database.json";
+    let tasks = match std::fs::read_to_string(path) {
+        Ok(data) => serde_json::from_str(&data).unwrap_or_else(|_| vec![]),
+        Err(_) => vec![],
+    };
+
+    Model {
+        tasks,
+        path: path.into(),
+        ..Default::default()
+    }
 }
 
-fn update(m: Model, msg: Msg) -> Model {
+fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
     match msg {
-        Msg::TextInput(task_text) => Model {
-            add_task_text_box: task_text,
+        Msg::TextInput(task_text) => (
+            Model {
+                add_task_text_box: task_text,
 
-            ..m
-        },
+                ..m
+            },
+            None,
+        ),
 
         Msg::Add => {
             let mut tasks = m.tasks;
@@ -41,10 +70,14 @@ fn update(m: Model, msg: Msg) -> Model {
                 done: false,
             });
 
-            Model {
-                tasks,
-                add_task_text_box: "".to_string(),
-            }
+            (
+                Model {
+                    tasks: tasks.clone(),
+                    add_task_text_box: "".to_string(),
+                    path: m.path.clone(),
+                },
+                Some(Cmd::Write(m.path.clone(), tasks)),
+            )
         }
 
         Msg::CheckBox(id, done) => {
@@ -53,7 +86,14 @@ fn update(m: Model, msg: Msg) -> Model {
                 task.done = done;
             }
 
-            Model { tasks, ..m }
+            (
+                Model {
+                    tasks: tasks.clone(),
+                    path: m.path.clone(),
+                    ..m
+                },
+                Some(Cmd::Write(m.path.clone(), tasks)),
+            )
         }
 
         Msg::Delete(id) => {
@@ -61,8 +101,15 @@ fn update(m: Model, msg: Msg) -> Model {
             if let Some(task) = tasks.iter().position(|t| t.task_id == id) {
                 tasks.remove(task);
             }
-            Model { tasks, ..m }
-        }
+            (
+                Model {
+                    tasks: tasks.clone(),
+                    path: m.path.clone(),
+                    ..m
+                },
+                Some(Cmd::Write(m.path.clone(), tasks)),
+            )
+        } //Msg::TasksLoaded(_) => (m, None),
     }
 }
 
@@ -122,6 +169,29 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
     });
 }
 
-fn main() -> eframe::Result<()> {
-    chai_tea::brew("elaichi chai", init, update, view)
+struct SyncState {}
+
+enum Cmd {
+    Write(PathBuf, Vec<Task>),
+    //Read(PathBuf),
+}
+
+fn sync_state_init() -> SyncState {
+    SyncState {}
+}
+
+fn run_cmd(cmd: Cmd, _sync_state: &mut SyncState, _tx: chai_tea::ChaiSender<Msg>) {
+    match cmd {
+        Cmd::Write(path, tasks) => {
+            tokio::spawn(async move {
+                let json = serde_json::to_string_pretty(&tasks).expect("failed to serialize");
+                tokio::fs::write(path, json).await.ok();
+            });
+        } //_ => {}
+    }
+}
+
+#[tokio::main]
+async fn main() -> eframe::Result<()> {
+    chai_tea::brew_async("elaichi chai", init, sync_state_init, update, view, run_cmd)
 }
