@@ -230,6 +230,31 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
     INIT.call_once(|| {
         let visuals = egui::Visuals::light();
         ctx.set_visuals(visuals);
+        let mut style = (*ctx.style()).clone();
+        style.text_styles = [
+            (
+                egui::TextStyle::Heading,
+                egui::FontId::new(24.0, egui::FontFamily::Proportional),
+            ),
+            (
+                egui::TextStyle::Body,
+                egui::FontId::new(15.0, egui::FontFamily::Proportional),
+            ),
+            (
+                egui::TextStyle::Monospace,
+                egui::FontId::new(14.0, egui::FontFamily::Monospace),
+            ),
+            (
+                egui::TextStyle::Button,
+                egui::FontId::new(15.0, egui::FontFamily::Proportional),
+            ),
+            (
+                egui::TextStyle::Small,
+                egui::FontId::new(10.0, egui::FontFamily::Proportional),
+            ),
+        ]
+        .into();
+        ctx.set_style(style);
     });
 
     egui::CentralPanel::default().show(ctx, |ui| {
