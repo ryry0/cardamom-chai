@@ -259,11 +259,14 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
     });
 
     egui::CentralPanel::default().show(ctx, |ui| {
+        let mut add_task_text_box_has_focus = false;
+        let mut task_edit_box_has_focus = false;
+        let text_edit_id = ui.make_persistent_id("add_task_text_box");
+
         ui.heading("cardamom chai");
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 let mut add_task_text_box = m.add_task_text_box.clone();
-                let text_edit_id = ui.make_persistent_id("add_task_text_box");
 
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut add_task_text_box)
@@ -292,28 +295,6 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     ui.memory_mut(|mem| mem.request_focus(text_edit_id));
                 }
 
-                if !response.has_focus() {
-                    if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                        ui.memory_mut(|mem| mem.request_focus(text_edit_id));
-                    }
-
-                    if ui.input(|i| i.key_pressed(egui::Key::A)) {
-                        tx.push(Msg::SetFilter(Filter::All));
-                    }
-
-                    if ui.input(|i| i.key_pressed(egui::Key::F)) {
-                        tx.push(Msg::SetFilter(Filter::Active));
-                    }
-
-                    if ui.input(|i| i.key_pressed(egui::Key::U)) {
-                        tx.push(Msg::SetFilter(Filter::Uncertain));
-                    }
-
-                    if ui.input(|i| i.key_pressed(egui::Key::D)) {
-                        tx.push(Msg::SetFilter(Filter::Done));
-                    }
-                }
-
                 let mut filter = m.filter;
                 let mut changed = false;
 
@@ -334,6 +315,7 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     tx.push(Msg::SetFilter(filter));
                 }
                 //if ui.button("Hidden").clicked() { tx.push(Msg::SetFilter(Filter::All)); }
+                add_task_text_box_has_focus = response.has_focus();
             });
 
             egui::ScrollArea::vertical().show(ui, |ui| {
@@ -380,6 +362,7 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                             {
                                 tx.push(Msg::EditDone(task.task_id));
                             }
+                            task_edit_box_has_focus |= response.has_focus();
                         } else {
                             let check_response = ui.checkbox(&mut checked, text);
 
@@ -413,6 +396,28 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                 }
             });
         });
+        //hotkeys
+        if !add_task_text_box_has_focus && !task_edit_box_has_focus {
+            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                ui.memory_mut(|mem| mem.request_focus(text_edit_id));
+            }
+
+            if ui.input(|i| i.key_pressed(egui::Key::A)) {
+                tx.push(Msg::SetFilter(Filter::All));
+            }
+
+            if ui.input(|i| i.key_pressed(egui::Key::F)) {
+                tx.push(Msg::SetFilter(Filter::Active));
+            }
+
+            if ui.input(|i| i.key_pressed(egui::Key::U)) {
+                tx.push(Msg::SetFilter(Filter::Uncertain));
+            }
+
+            if ui.input(|i| i.key_pressed(egui::Key::D)) {
+                tx.push(Msg::SetFilter(Filter::Done));
+            }
+        }
     });
 }
 
