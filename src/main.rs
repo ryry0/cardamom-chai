@@ -1,20 +1,8 @@
-//use async_trait::async_trait;
 use dirs::data_dir;
 use eframe::egui::{self, RichText};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
-
-/*
-#[async_trait]
-pub trait Storage: Send + Sync {
-    async fn add(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
-    async fn update(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
-    async fn delete(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
-    async fn list(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
-    async fn get(&self, task: Task) -> Result<(), Box<dyn std::error::Error>>;
-}
-*/
 
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Task {
@@ -340,7 +328,6 @@ struct SyncState {}
 
 enum Cmd {
     Write(PathBuf, Vec<Task>),
-    //Read(PathBuf),
 }
 
 fn sync_state_init() -> SyncState {
@@ -354,7 +341,7 @@ fn run_cmd(cmd: Cmd, _sync_state: &mut SyncState, _tx: chai_tea::ChaiSender<Msg>
                 let json = serde_json::to_string_pretty(&tasks).expect("failed to serialize");
                 tokio::fs::write(path, json).await.ok();
             });
-        } //_ => {}
+        }
     }
 }
 
