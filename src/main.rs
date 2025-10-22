@@ -27,6 +27,7 @@ enum Filter {
     All,
     Active,
     Uncertain,
+    Search,
     Done,
 }
 
@@ -266,11 +267,23 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
 
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut add_task_text_box)
-                        .hint_text("Add a task...")
+                        .hint_text("Add a task... '/' to search...")
                         .id(text_edit_id),
                 );
 
                 if response.changed() {
+                    match m.filter {
+                        Filter::Search => {
+                            if add_task_text_box.is_empty() {
+                                tx.push(Msg::SetFilter(Filter::All));
+                            }
+                        }
+                        _ => {
+                            if add_task_text_box.starts_with('/') {
+                                tx.push(Msg::SetFilter(Filter::Search));
+                            }
+                        }
+                    }
                     tx.push(Msg::TextInput(add_task_text_box));
                 }
 
@@ -306,6 +319,10 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     Filter::All => true,
                     Filter::Active => matches!(t.state, TaskState::Chosen),
                     Filter::Uncertain => matches!(t.state, TaskState::Uncertain),
+                    Filter::Search => {
+                        let query = m.add_task_text_box.trim_start_matches('/');
+                        fuzzy_match(&t.task_text.to_lowercase(), &query.to_lowercase())
+                    }
                     Filter::Done => t.done,
                 }) {
                     ui.horizontal(|ui| {
@@ -396,6 +413,20 @@ fn run_cmd(cmd: Cmd, _sync_state: &mut SyncState, _tx: chai_tea::ChaiSender<Msg>
             });
         }
     }
+}
+
+fn fuzzy_match(haystack: &str, needle: &str) -> bool {
+    let mut n_chars = needle.chars();
+    let mut current = n_chars.next();
+    for c in haystack.chars() {
+        if Some(c) == current {
+            current = n_chars.next();
+            if current.is_none() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 #[tokio::main]
