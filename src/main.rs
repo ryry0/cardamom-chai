@@ -20,6 +20,16 @@ pub struct Task {
     task_id: Uuid,
     task_text: String,
     done: bool,
+    #[serde(default)]
+    state: TaskState,
+}
+
+#[derive(PartialEq, Default, Copy, Clone, Serialize, Deserialize)]
+enum TaskState {
+    #[default]
+    Normal,
+    Chosen,
+    Uncertain,
 }
 
 #[derive(PartialEq, Default, Copy, Clone)]
@@ -27,6 +37,7 @@ enum Filter {
     #[default]
     All,
     Active,
+    Uncertain,
     Done,
 }
 
@@ -36,18 +47,16 @@ struct Model {
     add_task_text_box: String,
     tasks: Vec<Task>,
     filter: Filter,
-    chosen_tasks: Vec<Uuid>,
+    edit_tasks: Vec<Uuid>,
 }
 
 enum Msg {
     TextInput(String),
-    Choose(Uuid),
-    Unchoose(Uuid),
     Add,
     CheckBox(Uuid, bool),
     Delete(Uuid),
     SetFilter(Filter),
-    //TasksLoaded(Vec<Task>),
+    CycleTaskState(Uuid),
 }
 
 fn init() -> Model {
@@ -80,7 +89,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             tasks.push(Task {
                 task_id: Uuid::new_v4(),
                 task_text: m.add_task_text_box.clone(),
-                done: false,
+                ..Default::default()
             });
 
             (
@@ -110,6 +119,26 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             )
         }
 
+        Msg::CycleTaskState(id) => {
+            let mut tasks = m.tasks;
+            if let Some(task) = tasks.iter_mut().find(|t| t.task_id == id) {
+                task.state = match task.state {
+                    TaskState::Normal => TaskState::Chosen,
+                    TaskState::Chosen => TaskState::Uncertain,
+                    TaskState::Uncertain => TaskState::Normal,
+                }
+            }
+
+            (
+                Model {
+                    tasks: tasks.clone(),
+                    path: m.path.clone(),
+                    ..m
+                },
+                Some(Cmd::Write(m.path.clone(), tasks)),
+            )
+        }
+
         Msg::Delete(id) => {
             let mut tasks = m.tasks;
             if let Some(task) = tasks.iter().position(|t| t.task_id == id) {
@@ -124,21 +153,24 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                 Some(Cmd::Write(m.path.clone(), tasks)),
             )
         }
+
         Msg::SetFilter(filter) => (Model { filter, ..m }, None),
-        Msg::Choose(id) => {
-            let mut chosen_tasks = m.chosen_tasks;
-            chosen_tasks.push(id);
+        /*
+        Msg::Edit(id) => {
+            let mut edit_tasks = m.edit_tasks;
+            edit_tasks.push(id);
             (Model { chosen_tasks, ..m }, None)
         }
 
         Msg::Unchoose(id) => {
-            let mut chosen_tasks = m.chosen_tasks;
-            if let Some(chosen_task) = chosen_tasks.iter().position(|t| *t == id) {
-                chosen_tasks.remove(chosen_task);
+            let mut edit_tasks = m.edit_tasks;
+            if let Some(edit_task) = edit_tasks.iter().position(|t| *t == id) {
+                edit_tasks.remove(edit_task);
             }
 
-            (Model { chosen_tasks, ..m }, None)
+            (Model { edit_tasks, ..m }, None)
         } //Msg::TasksLoaded(_) => (m, None),
+        */
     }
 }
 
@@ -182,6 +214,9 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     .selectable_value(&mut filter, Filter::Active, "Active")
                     .changed();
                 changed |= ui
+                    .selectable_value(&mut filter, Filter::Uncertain, "Uncertain")
+                    .changed();
+                changed |= ui
                     .selectable_value(&mut filter, Filter::Done, "Done")
                     .changed();
 
@@ -194,7 +229,8 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for task in m.tasks.iter().rev().filter(|t| match &m.filter {
                     Filter::All => true,
-                    Filter::Active => m.chosen_tasks.contains(&t.task_id),
+                    Filter::Active => matches!(t.state, TaskState::Chosen),
+                    Filter::Uncertain => matches!(t.state, TaskState::Uncertain),
                     Filter::Done => t.done,
                 }) {
                     ui.horizontal(|ui| {
@@ -202,12 +238,17 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
 
                         let text = if checked {
                             RichText::new(&task.task_text).strikethrough().weak()
-                        } else if m.chosen_tasks.contains(&task.task_id) {
-                            RichText::new(&task.task_text)
-                                .color(egui::Color32::from_rgb(32, 159, 181))
-                                .underline()
                         } else {
-                            RichText::new(&task.task_text)
+                            match task.state {
+                                TaskState::Normal => RichText::new(&task.task_text),
+                                TaskState::Chosen => RichText::new(&task.task_text)
+                                    .color(egui::Color32::from_rgb(32, 159, 181))
+                                    .underline(),
+                                TaskState::Uncertain => {
+                                    RichText::new(format!("{}?", &task.task_text))
+                                        .color(egui::Color32::from_rgb(234, 118, 203))
+                                }
+                            }
                         };
 
                         let check_response = ui.checkbox(&mut checked, text);
@@ -217,14 +258,12 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                         }
 
                         if check_response.secondary_clicked() {
-                            if m.chosen_tasks.contains(&task.task_id) {
-                                tx.push(Msg::Unchoose(task.task_id));
-                            } else {
-                                tx.push(Msg::Choose(task.task_id));
-                            }
+                            tx.push(Msg::CycleTaskState(task.task_id));
                         }
 
-                        if checked && ui.button("🗑").clicked() {
+                        if (checked || matches!(task.state, TaskState::Uncertain))
+                            && ui.button("🗑").clicked()
+                        {
                             tx.push(Msg::Delete(task.task_id));
                         }
                     });
