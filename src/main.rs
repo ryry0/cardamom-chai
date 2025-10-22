@@ -194,7 +194,7 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for task in m.tasks.iter().rev().filter(|t| match &m.filter {
                     Filter::All => true,
-                    Filter::Active => !t.done && m.chosen_tasks.contains(&t.task_id),
+                    Filter::Active => m.chosen_tasks.contains(&t.task_id),
                     Filter::Done => t.done,
                 }) {
                     ui.horizontal(|ui| {
