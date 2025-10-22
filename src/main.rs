@@ -57,6 +57,7 @@ enum Msg {
     Delete(Uuid),
     SetFilter(Filter),
     CycleTaskState(Uuid),
+    Reschedule(String),
 }
 
 fn init() -> Model {
@@ -96,6 +97,24 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                 Model {
                     tasks: tasks.clone(),
                     add_task_text_box: "".to_string(),
+                    path: m.path.clone(),
+                    ..m
+                },
+                Some(Cmd::Write(m.path.clone(), tasks)),
+            )
+        }
+
+        Msg::Reschedule(text) => {
+            let mut tasks = m.tasks;
+            tasks.push(Task {
+                task_id: Uuid::new_v4(),
+                task_text: text,
+                ..Default::default()
+            });
+
+            (
+                Model {
+                    tasks: tasks.clone(),
                     path: m.path.clone(),
                     ..m
                 },
@@ -265,6 +284,9 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                             && ui.button("🗑").clicked()
                         {
                             tx.push(Msg::Delete(task.task_id));
+                        }
+                        if checked && ui.button("🔁").clicked() {
+                            tx.push(Msg::Reschedule(task.task_text.clone()));
                         }
                     });
                 }
