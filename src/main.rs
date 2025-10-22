@@ -138,10 +138,14 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
         Msg::CycleTaskState(id) => {
             let mut tasks = m.tasks;
             if let Some(task) = tasks.iter_mut().find(|t| t.task_id == id) {
-                task.state = match task.state {
-                    TaskState::Normal => TaskState::Chosen,
-                    TaskState::Chosen => TaskState::Uncertain,
-                    TaskState::Uncertain => TaskState::Normal,
+                if task.done {
+                    task.state = TaskState::Normal;
+                } else {
+                    task.state = match task.state {
+                        TaskState::Normal => TaskState::Chosen,
+                        TaskState::Chosen => TaskState::Uncertain,
+                        TaskState::Uncertain => TaskState::Normal,
+                    }
                 }
             }
 
@@ -151,6 +155,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                     path: m.path.clone(),
                     ..m
                 },
+
                 Some(Cmd::Write(m.path.clone(), tasks)),
             )
         }
