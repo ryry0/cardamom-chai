@@ -47,6 +47,7 @@ enum Msg {
     SetFilter(Filter),
     CycleTaskState(Uuid),
     Reschedule(String),
+    RescheduleActive(String),
     Edit(Uuid),
     EditInput(Uuid, String),
     EditDone(Uuid),
@@ -119,6 +120,25 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             )
         }
 
+        Msg::RescheduleActive(text) => {
+            let mut tasks = m.tasks;
+            tasks.push(Task {
+                task_id: Uuid::new_v4(),
+                task_text: text,
+                state: TaskState::Chosen,
+                ..Default::default()
+            });
+
+            (
+                Model {
+                    tasks: tasks.clone(),
+                    path: m.path.clone(),
+                    ..m
+                },
+                Some(Cmd::Write(m.path.clone(), tasks)),
+            )
+        }
+
         Msg::CheckBox(id, done) => {
             let mut tasks = m.tasks;
             if let Some(task) = tasks.iter_mut().find(|t| t.task_id == id) {
@@ -155,7 +175,6 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                     path: m.path.clone(),
                     ..m
                 },
-
                 Some(Cmd::Write(m.path.clone(), tasks)),
             )
         }
@@ -320,6 +339,10 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
 
                             if checked && ui.button("🔁").clicked() {
                                 tx.push(Msg::Reschedule(task.task_text.clone()));
+                            }
+                            if checked && ui.button("⟲").clicked() {
+                                tx.push(Msg::RescheduleActive(task.task_text.clone()));
+                                tx.push(Msg::CycleTaskState(task.task_id));
                             }
                         }
                     });
