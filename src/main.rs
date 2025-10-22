@@ -22,18 +22,31 @@ pub struct Task {
     done: bool,
 }
 
+#[derive(PartialEq, Default, Copy, Clone)]
+enum Filter {
+    #[default]
+    All,
+    Active,
+    Done,
+}
+
 #[derive(Default)]
 struct Model {
     path: PathBuf,
     add_task_text_box: String,
     tasks: Vec<Task>,
+    filter: Filter,
+    chosen_tasks: Vec<Uuid>,
 }
 
 enum Msg {
     TextInput(String),
+    Choose(Uuid),
+    Unchoose(Uuid),
     Add,
     CheckBox(Uuid, bool),
     Delete(Uuid),
+    SetFilter(Filter),
     //TasksLoaded(Vec<Task>),
 }
 
@@ -75,6 +88,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                     tasks: tasks.clone(),
                     add_task_text_box: "".to_string(),
                     path: m.path.clone(),
+                    ..m
                 },
                 Some(Cmd::Write(m.path.clone(), tasks)),
             )
@@ -109,6 +123,21 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                 },
                 Some(Cmd::Write(m.path.clone(), tasks)),
             )
+        }
+        Msg::SetFilter(filter) => (Model { filter, ..m }, None),
+        Msg::Choose(id) => {
+            let mut chosen_tasks = m.chosen_tasks;
+            chosen_tasks.push(id);
+            (Model { chosen_tasks, ..m }, None)
+        }
+
+        Msg::Unchoose(id) => {
+            let mut chosen_tasks = m.chosen_tasks;
+            if let Some(chosen_task) = chosen_tasks.iter().position(|t| *t == id) {
+                chosen_tasks.remove(chosen_task);
+            }
+
+            (Model { chosen_tasks, ..m }, None)
         } //Msg::TasksLoaded(_) => (m, None),
     }
 }
@@ -142,15 +171,41 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     tx.push(Msg::Add);
                     ui.memory_mut(|mem| mem.request_focus(text_edit_id));
                 }
+
+                let mut filter = m.filter;
+                let mut changed = false;
+
+                changed |= ui
+                    .selectable_value(&mut filter, Filter::All, "All")
+                    .changed();
+                changed |= ui
+                    .selectable_value(&mut filter, Filter::Active, "Active")
+                    .changed();
+                changed |= ui
+                    .selectable_value(&mut filter, Filter::Done, "Done")
+                    .changed();
+
+                if changed {
+                    tx.push(Msg::SetFilter(filter));
+                }
+                //if ui.button("Hidden").clicked() { tx.push(Msg::SetFilter(Filter::All)); }
             });
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                for task in m.tasks.iter().rev() {
+                for task in m.tasks.iter().rev().filter(|t| match &m.filter {
+                    Filter::All => true,
+                    Filter::Active => !t.done && m.chosen_tasks.contains(&t.task_id),
+                    Filter::Done => t.done,
+                }) {
                     ui.horizontal(|ui| {
                         let mut checked = task.done;
 
                         let text = if checked {
                             RichText::new(&task.task_text).strikethrough().weak()
+                        } else if m.chosen_tasks.contains(&task.task_id) {
+                            RichText::new(&task.task_text)
+                                .color(egui::Color32::from_rgb(32, 159, 181))
+                                .underline()
                         } else {
                             RichText::new(&task.task_text)
                         };
@@ -159,6 +214,14 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
 
                         if check_response.changed() {
                             tx.push(Msg::CheckBox(task.task_id, checked));
+                        }
+
+                        if check_response.secondary_clicked() {
+                            if m.chosen_tasks.contains(&task.task_id) {
+                                tx.push(Msg::Unchoose(task.task_id));
+                            } else {
+                                tx.push(Msg::Choose(task.task_id));
+                            }
                         }
 
                         if checked && ui.button("🗑").clicked() {
