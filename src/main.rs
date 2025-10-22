@@ -58,6 +58,9 @@ enum Msg {
     SetFilter(Filter),
     CycleTaskState(Uuid),
     Reschedule(String),
+    Edit(Uuid),
+    EditInput(Uuid, String),
+    EditDone(Uuid),
 }
 
 fn init() -> Model {
@@ -174,22 +177,32 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
         }
 
         Msg::SetFilter(filter) => (Model { filter, ..m }, None),
-        /*
+
         Msg::Edit(id) => {
             let mut edit_tasks = m.edit_tasks;
             edit_tasks.push(id);
-            (Model { chosen_tasks, ..m }, None)
+            (Model { edit_tasks, ..m }, None)
         }
 
-        Msg::Unchoose(id) => {
+        Msg::EditInput(id, new_text) => {
+            let mut tasks = m.tasks;
+            if let Some(task) = tasks.iter_mut().find(|t| t.task_id == id) {
+                task.task_text = new_text;
+            }
+
+            (Model { tasks, ..m }, None)
+        }
+
+        Msg::EditDone(id) => {
             let mut edit_tasks = m.edit_tasks;
             if let Some(edit_task) = edit_tasks.iter().position(|t| *t == id) {
                 edit_tasks.remove(edit_task);
             }
+            let path = m.path.clone();
+            let tasks = m.tasks.clone();
 
-            (Model { edit_tasks, ..m }, None)
-        } //Msg::TasksLoaded(_) => (m, None),
-        */
+            (Model { edit_tasks, ..m }, Some(Cmd::Write(path, tasks)))
+        }
     }
 }
 
@@ -270,23 +283,45 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                             }
                         };
 
-                        let check_response = ui.checkbox(&mut checked, text);
+                        if m.edit_tasks.contains(&task.task_id) {
+                            let mut edit_task_text_box = task.task_text.clone();
+                            let _ = ui.checkbox(&mut checked, "");
+                            let response =
+                                ui.add(egui::TextEdit::singleline(&mut edit_task_text_box));
 
-                        if check_response.changed() {
-                            tx.push(Msg::CheckBox(task.task_id, checked));
-                        }
+                            if response.changed() {
+                                tx.push(Msg::EditInput(task.task_id, edit_task_text_box));
+                            }
 
-                        if check_response.secondary_clicked() {
-                            tx.push(Msg::CycleTaskState(task.task_id));
-                        }
+                            if response.lost_focus()
+                                && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                            {
+                                tx.push(Msg::EditDone(task.task_id));
+                            }
+                        } else {
+                            let check_response = ui.checkbox(&mut checked, text);
 
-                        if (checked || matches!(task.state, TaskState::Uncertain))
-                            && ui.button("🗑").clicked()
-                        {
-                            tx.push(Msg::Delete(task.task_id));
-                        }
-                        if checked && ui.button("🔁").clicked() {
-                            tx.push(Msg::Reschedule(task.task_text.clone()));
+                            if check_response.changed() {
+                                tx.push(Msg::CheckBox(task.task_id, checked));
+                            }
+
+                            if check_response.double_clicked() {
+                                tx.push(Msg::Edit(task.task_id));
+                            }
+
+                            if check_response.secondary_clicked() {
+                                tx.push(Msg::CycleTaskState(task.task_id));
+                            }
+
+                            if (checked || matches!(task.state, TaskState::Uncertain))
+                                && ui.button("🗑").clicked()
+                            {
+                                tx.push(Msg::Delete(task.task_id));
+                            }
+
+                            if checked && ui.button("🔁").clicked() {
+                                tx.push(Msg::Reschedule(task.task_text.clone()));
+                            }
                         }
                     });
                 }
