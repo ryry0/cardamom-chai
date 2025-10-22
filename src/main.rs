@@ -1,4 +1,5 @@
 //use async_trait::async_trait;
+use dirs::data_dir;
 use eframe::egui::{self, RichText};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -64,15 +65,20 @@ enum Msg {
 }
 
 fn init() -> Model {
-    let path = "database.json";
-    let tasks = match std::fs::read_to_string(path) {
+    let filename = "database.json";
+    let mut path = data_dir().expect("no data dir found");
+    path.push("cardamom-chai");
+    std::fs::create_dir_all(&path).ok();
+    path.push(filename);
+
+    let tasks = match std::fs::read_to_string(&path) {
         Ok(data) => serde_json::from_str(&data).unwrap_or_else(|_| vec![]),
         Err(_) => vec![],
     };
 
     Model {
         tasks,
-        path: path.into(),
+        path,
         ..Default::default()
     }
 }
@@ -354,5 +360,12 @@ fn run_cmd(cmd: Cmd, _sync_state: &mut SyncState, _tx: chai_tea::ChaiSender<Msg>
 
 #[tokio::main]
 async fn main() -> eframe::Result<()> {
-    chai_tea::brew_async("elaichi chai", init, sync_state_init, update, view, run_cmd)
+    chai_tea::brew_async(
+        "cardamom-chai",
+        init,
+        sync_state_init,
+        update,
+        view,
+        run_cmd,
+    )
 }
