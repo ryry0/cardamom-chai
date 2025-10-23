@@ -371,9 +371,10 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                         Filter::Active => matches!(t.state, TaskState::Chosen),
                         Filter::Pending => !t.done,
                         Filter::Uncertain => matches!(t.state, TaskState::Uncertain),
-                        Filter::Search => {
-                            fuzzy_match(&t.task_text.to_lowercase(), &m.add_task_text_box)
-                        }
+                        Filter::Search => fuzzy_match(
+                            &t.task_text.to_lowercase(),
+                            m.add_task_text_box.trim_start_matches('/'),
+                        ),
                         Filter::Done => t.done,
                     }) {
                         ui.horizontal(|ui| {
