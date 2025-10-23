@@ -86,9 +86,22 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
 
         Msg::Add => {
             let mut tasks = m.tasks;
+
+            let mut state = TaskState::Normal;
+            let mut text = m.add_task_text_box.clone();
+
+            if text.ends_with('?') {
+                state = TaskState::Uncertain;
+                text = text.trim_end_matches('?').to_string();
+            } else if text.ends_with('!') {
+                state = TaskState::Chosen;
+                text = text.trim_end_matches('!').to_string();
+            }
+
             tasks.push(Task {
                 task_id: Uuid::new_v4(),
-                task_text: m.add_task_text_box.clone(),
+                task_text: text,
+                state,
                 ..Default::default()
             });
 
