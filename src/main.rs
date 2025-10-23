@@ -97,6 +97,8 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             } else if text.ends_with('!') {
                 state = TaskState::Chosen;
                 text = text.trim_end_matches('!').to_string();
+            }  else if text.ends_with('*') {
+                state = TaskState::Chosen;
             }
 
             tasks.push(Task {
