@@ -345,18 +345,18 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     ui.horizontal(|ui| {
                         let mut checked = task.done;
 
+                        let asterisk = task.task_text.ends_with('*');
+                        let trimmed_text = task.task_text.trim_end_matches('*');
                         let text = if checked {
-                            RichText::new(&task.task_text).strikethrough().weak()
+                            RichText::new(trimmed_text).strikethrough().weak()
                         } else {
                             match task.state {
-                                TaskState::Normal => RichText::new(&task.task_text),
-                                TaskState::Chosen => RichText::new(&task.task_text)
+                                TaskState::Normal => RichText::new(trimmed_text),
+                                TaskState::Chosen => RichText::new(trimmed_text)
                                     .color(egui::Color32::from_rgb(32, 159, 181))
                                     .underline(),
-                                TaskState::Uncertain => {
-                                    RichText::new(format!("{}?", &task.task_text))
-                                        .color(egui::Color32::from_rgb(234, 118, 203))
-                                }
+                                TaskState::Uncertain => RichText::new(format!("{}?", trimmed_text))
+                                    .color(egui::Color32::from_rgb(234, 118, 203)),
                             }
                         };
 
@@ -397,10 +397,11 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                                 tx.push(Msg::Delete(task.task_id));
                             }
 
-                            if checked && ui.button("🔁").clicked() {
+                            if checked && !asterisk && ui.button("🔁").clicked() {
                                 tx.push(Msg::Reschedule(task.task_text.clone()));
                             }
-                            if checked && ui.button("⟲").clicked() {
+
+                            if checked && asterisk && ui.button("⟲").clicked() {
                                 tx.push(Msg::RescheduleActive(task.task_text.clone()));
                                 tx.push(Msg::CycleTaskState(task.task_id));
                             }
