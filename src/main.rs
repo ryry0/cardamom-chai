@@ -281,6 +281,12 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
             ui.horizontal(|ui| {
                 let mut add_task_text_box = m.add_task_text_box.clone();
 
+                if matches!(m.filter, Filter::Search) {
+                    ui.label(RichText::new("/").monospace());
+                } else {
+                    ui.label(RichText::new(" ").monospace());
+                }
+
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut add_task_text_box)
                         .hint_text("Add a task... '/' to search...")
@@ -300,7 +306,10 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                             }
                         }
                     }
-                    tx.push(Msg::TextInput(add_task_text_box));
+
+                    tx.push(Msg::TextInput(
+                        add_task_text_box.trim_start_matches('/').to_string(),
+                    ));
                 }
 
                 if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -327,7 +336,7 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                 if changed {
                     tx.push(Msg::SetFilter(filter));
                 }
-                //if ui.button("Hidden").clicked() { tx.push(Msg::SetFilter(Filter::All)); }
+
                 add_task_text_box_has_focus = response.has_focus();
             });
 
@@ -337,8 +346,7 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     Filter::Active => matches!(t.state, TaskState::Chosen),
                     Filter::Uncertain => matches!(t.state, TaskState::Uncertain),
                     Filter::Search => {
-                        let query = m.add_task_text_box.trim_start_matches('/');
-                        fuzzy_match(&t.task_text.to_lowercase(), &query.to_lowercase())
+                        fuzzy_match(&t.task_text.to_lowercase(), &m.add_task_text_box)
                     }
                     Filter::Done => t.done,
                 }) {
@@ -414,6 +422,11 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
         if !add_task_text_box_has_focus && !task_edit_box_has_focus {
             if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 ui.memory_mut(|mem| mem.request_focus(text_edit_id));
+            }
+
+            if ui.input(|i| i.key_pressed(egui::Key::Slash)) {
+                ui.memory_mut(|mem| mem.request_focus(text_edit_id));
+                tx.push(Msg::SetFilter(Filter::Search));
             }
 
             if ui.input(|i| i.key_pressed(egui::Key::A)) {
