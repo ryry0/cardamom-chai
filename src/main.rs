@@ -377,7 +377,7 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                         ),
                         Filter::Done => t.done,
                     }) {
-                        ui.horizontal(|ui| {
+                        ui.horizontal_wrapped(|ui| {
                             let mut checked = task.done;
 
                             let asterisk = task.task_text.ends_with('*');
