@@ -312,7 +312,10 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     ));
                 }
 
-                if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                if response.lost_focus()
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                    && !matches!(m.filter, Filter::Search)
+                {
                     tx.push(Msg::Add);
                     ui.memory_mut(|mem| mem.request_focus(text_edit_id));
                 }
