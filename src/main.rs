@@ -27,6 +27,7 @@ enum Filter {
     All,
     Active,
     Uncertain,
+    Pending,
     Search,
     Done,
 }
@@ -330,6 +331,9 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     .selectable_value(&mut filter, Filter::Active, "Active")
                     .changed();
                 changed |= ui
+                    .selectable_value(&mut filter, Filter::Pending, "Pending")
+                    .changed();
+                changed |= ui
                     .selectable_value(&mut filter, Filter::Uncertain, "Uncertain")
                     .changed();
                 changed |= ui
@@ -347,6 +351,7 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                 for task in m.tasks.iter().rev().filter(|t| match &m.filter {
                     Filter::All => true,
                     Filter::Active => matches!(t.state, TaskState::Chosen),
+                    Filter::Pending => !t.done,
                     Filter::Uncertain => matches!(t.state, TaskState::Uncertain),
                     Filter::Search => {
                         fuzzy_match(&t.task_text.to_lowercase(), &m.add_task_text_box)
@@ -438,6 +443,10 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
 
             if ui.input(|i| i.key_pressed(egui::Key::F)) {
                 tx.push(Msg::SetFilter(Filter::Active));
+            }
+
+            if ui.input(|i| i.key_pressed(egui::Key::P)) {
+                tx.push(Msg::SetFilter(Filter::Pending));
             }
 
             if ui.input(|i| i.key_pressed(egui::Key::U)) {
