@@ -272,55 +272,24 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
         ctx.set_style(style);
     });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
-        let mut add_task_text_box_has_focus = false;
-        let mut task_edit_box_has_focus = false;
-        let text_edit_id = ui.make_persistent_id("add_task_text_box");
+    egui::SidePanel::left("left_panel")
+        .resizable(true)
+        .default_width(350.0)
+        .width_range(80.0..=350.0)
+        .show(ctx, |_ui| {});
 
-        ui.heading("cardamom chai");
-        ui.vertical(|ui| {
+    egui::SidePanel::right("right_panel")
+        .resizable(true)
+        .default_width(350.0)
+        .width_range(80.0..=350.0)
+        .show(ctx, |_ui| {});
+
+    egui::TopBottomPanel::bottom("bottom_panel")
+        .resizable(false)
+        .min_height(0.0)
+        .show(ctx, |ui| {
+            ui.add_space(5.0);
             ui.horizontal(|ui| {
-                let mut add_task_text_box = m.add_task_text_box.clone();
-
-                if matches!(m.filter, Filter::Search) {
-                    ui.label(RichText::new("/").monospace());
-                } else {
-                    ui.label(RichText::new(" ").monospace());
-                }
-
-                let response = ui.add(
-                    egui::TextEdit::singleline(&mut add_task_text_box)
-                        .hint_text("Add a task... '/' to search...")
-                        .id(text_edit_id),
-                );
-
-                if response.changed() {
-                    match m.filter {
-                        Filter::Search => {
-                            if add_task_text_box.is_empty() {
-                                tx.push(Msg::SetFilter(Filter::All));
-                            }
-                        }
-                        _ => {
-                            if add_task_text_box.starts_with('/') {
-                                tx.push(Msg::SetFilter(Filter::Search));
-                            }
-                        }
-                    }
-
-                    tx.push(Msg::TextInput(
-                        add_task_text_box.trim_start_matches('/').to_string(),
-                    ));
-                }
-
-                if response.lost_focus()
-                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                    && !matches!(m.filter, Filter::Search)
-                {
-                    tx.push(Msg::Add);
-                    ui.memory_mut(|mem| mem.request_focus(text_edit_id));
-                }
-
                 let mut filter = m.filter;
                 let mut changed = false;
 
@@ -343,88 +312,139 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                 if changed {
                     tx.push(Msg::SetFilter(filter));
                 }
+            });
+        });
+
+    egui::CentralPanel::default().show(ctx, |ui| {
+        let mut add_task_text_box_has_focus = false;
+        let mut task_edit_box_has_focus = false;
+        let text_edit_id = ui.make_persistent_id("add_task_text_box");
+
+        ui.vertical_centered(|ui| {
+            ui.heading("cardamom chai");
+            ui.add_space(12.0);
+
+            ui.vertical_centered(|ui| {
+                let mut add_task_text_box = m.add_task_text_box.clone();
+
+                let response = ui.add(
+                    egui::TextEdit::singleline(&mut add_task_text_box)
+                        .hint_text("Add a task... '/' to search...")
+                        .id(text_edit_id),
+                );
+
+                if response.changed() {
+                    match m.filter {
+                        Filter::Search => {
+                            if add_task_text_box.is_empty() {
+                                tx.push(Msg::SetFilter(Filter::All));
+                            }
+                        }
+                        _ => {
+                            if add_task_text_box.starts_with('/') {
+                                tx.push(Msg::SetFilter(Filter::Search));
+                            }
+                        }
+                    }
+
+                    tx.push(Msg::TextInput(add_task_text_box));
+                }
+
+                if response.lost_focus()
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                    && !matches!(m.filter, Filter::Search)
+                {
+                    tx.push(Msg::Add);
+                    ui.memory_mut(|mem| mem.request_focus(text_edit_id));
+                }
 
                 add_task_text_box_has_focus = response.has_focus();
             });
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for task in m.tasks.iter().rev().filter(|t| match &m.filter {
-                    Filter::All => true,
-                    Filter::Active => matches!(t.state, TaskState::Chosen),
-                    Filter::Pending => !t.done,
-                    Filter::Uncertain => matches!(t.state, TaskState::Uncertain),
-                    Filter::Search => {
-                        fuzzy_match(&t.task_text.to_lowercase(), &m.add_task_text_box)
-                    }
-                    Filter::Done => t.done,
-                }) {
-                    ui.horizontal(|ui| {
-                        let mut checked = task.done;
+            ui.add_space(12.0);
 
-                        let asterisk = task.task_text.ends_with('*');
-                        let trimmed_text = task.task_text.trim_end_matches('*');
-                        let text = if checked {
-                            RichText::new(trimmed_text).strikethrough().weak()
-                        } else {
-                            match task.state {
-                                TaskState::Normal => RichText::new(trimmed_text),
-                                TaskState::Chosen => RichText::new(trimmed_text)
-                                    .color(egui::Color32::from_rgb(32, 159, 181))
-                                    .underline(),
-                                TaskState::Uncertain => RichText::new(format!("{}?", trimmed_text))
-                                    .color(egui::Color32::from_rgb(234, 118, 203)),
-                            }
-                        };
-
-                        if m.edit_tasks.contains(&task.task_id) {
-                            let mut edit_task_text_box = task.task_text.clone();
-                            let _ = ui.checkbox(&mut checked, "");
-                            let response =
-                                ui.add(egui::TextEdit::singleline(&mut edit_task_text_box));
-
-                            if response.changed() {
-                                tx.push(Msg::EditInput(task.task_id, edit_task_text_box));
-                            }
-
-                            if response.lost_focus()
-                                && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                            {
-                                tx.push(Msg::EditDone(task.task_id));
-                            }
-                            task_edit_box_has_focus |= response.has_focus();
-                        } else {
-                            let check_response = ui.checkbox(&mut checked, text);
-
-                            if check_response.changed() {
-                                tx.push(Msg::CheckBox(task.task_id, checked));
-                            }
-
-                            if check_response.double_clicked() {
-                                tx.push(Msg::Edit(task.task_id));
-                            }
-
-                            if check_response.secondary_clicked() {
-                                tx.push(Msg::CycleTaskState(task.task_id));
-                            }
-
-                            if (checked || matches!(task.state, TaskState::Uncertain))
-                                && ui.button("🗑").clicked()
-                            {
-                                tx.push(Msg::Delete(task.task_id));
-                            }
-
-                            if checked && !asterisk && ui.button("🔁").clicked() {
-                                tx.push(Msg::Reschedule(task.task_text.clone()));
-                            }
-
-                            if checked && asterisk && ui.button("⟲").clicked() {
-                                tx.push(Msg::RescheduleActive(task.task_text.clone()));
-                                tx.push(Msg::CycleTaskState(task.task_id));
-                            }
+            egui::ScrollArea::vertical()
+                .auto_shrink(false)
+                .show(ui, |ui| {
+                    for task in m.tasks.iter().rev().filter(|t| match &m.filter {
+                        Filter::All => true,
+                        Filter::Active => matches!(t.state, TaskState::Chosen),
+                        Filter::Pending => !t.done,
+                        Filter::Uncertain => matches!(t.state, TaskState::Uncertain),
+                        Filter::Search => {
+                            fuzzy_match(&t.task_text.to_lowercase(), &m.add_task_text_box)
                         }
-                    });
-                }
-            });
+                        Filter::Done => t.done,
+                    }) {
+                        ui.horizontal(|ui| {
+                            let mut checked = task.done;
+
+                            let asterisk = task.task_text.ends_with('*');
+                            let trimmed_text = task.task_text.trim_end_matches('*');
+                            let text = if checked {
+                                RichText::new(trimmed_text).strikethrough().weak()
+                            } else {
+                                match task.state {
+                                    TaskState::Normal => RichText::new(trimmed_text),
+                                    TaskState::Chosen => RichText::new(trimmed_text)
+                                        .color(egui::Color32::from_rgb(32, 159, 181))
+                                        .underline(),
+                                    TaskState::Uncertain => {
+                                        RichText::new(format!("{}?", trimmed_text))
+                                            .color(egui::Color32::from_rgb(234, 118, 203))
+                                    }
+                                }
+                            };
+
+                            if m.edit_tasks.contains(&task.task_id) {
+                                let mut edit_task_text_box = task.task_text.clone();
+                                let _ = ui.checkbox(&mut checked, "");
+                                let response =
+                                    ui.add(egui::TextEdit::singleline(&mut edit_task_text_box));
+
+                                if response.changed() {
+                                    tx.push(Msg::EditInput(task.task_id, edit_task_text_box));
+                                }
+
+                                if response.lost_focus()
+                                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                {
+                                    tx.push(Msg::EditDone(task.task_id));
+                                }
+                                task_edit_box_has_focus |= response.has_focus();
+                            } else {
+                                let check_response = ui.checkbox(&mut checked, text);
+
+                                if check_response.changed() {
+                                    tx.push(Msg::CheckBox(task.task_id, checked));
+                                }
+
+                                if check_response.double_clicked() {
+                                    tx.push(Msg::Edit(task.task_id));
+                                }
+
+                                if check_response.secondary_clicked() {
+                                    tx.push(Msg::CycleTaskState(task.task_id));
+                                }
+
+                                if (checked || matches!(task.state, TaskState::Uncertain))
+                                    && ui.button("🗑").clicked()
+                                {
+                                    tx.push(Msg::Delete(task.task_id));
+                                }
+
+                                if checked && !asterisk && ui.button("🔁").clicked() {
+                                    tx.push(Msg::Reschedule(task.task_text.clone()));
+                                }
+
+                                if checked && asterisk && ui.button("⟲").clicked() {
+                                    tx.push(Msg::RescheduleActive(task.task_text.clone()));
+                                    tx.push(Msg::CycleTaskState(task.task_id));
+                                }
+                            }
+                        });
+                    }
+                });
         });
         //hotkeys
         if !add_task_text_box_has_focus && !task_edit_box_has_focus {
@@ -433,7 +453,15 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
             }
 
             if ui.input(|i| i.key_pressed(egui::Key::Slash)) {
-                ui.memory_mut(|mem| mem.request_focus(text_edit_id));
+                if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), text_edit_id) {
+                    let ccursor = egui::text::CCursor::new(1);
+                    state
+                        .cursor
+                        .set_char_range(Some(egui::text::CCursorRange::one(ccursor)));
+                    state.store(ui.ctx(), text_edit_id);
+                    ui.ctx().memory_mut(|mem| mem.request_focus(text_edit_id)); // give focus back to the [`TextEdit`].
+                }
+                tx.push(Msg::TextInput("/".to_string()));
                 tx.push(Msg::SetFilter(Filter::Search));
             }
 
