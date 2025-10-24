@@ -88,7 +88,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             let mut tasks = m.tasks;
 
             let mut state = TaskState::Normal;
-            let mut text = m.add_task_text_box.clone();
+            let mut text = m.add_task_text_box.trim().to_string();
 
             if text.ends_with('?') {
                 state = TaskState::Uncertain;
