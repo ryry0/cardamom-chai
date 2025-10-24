@@ -53,29 +53,28 @@ enum Msg {
     Edit(Uuid),
     EditInput(Uuid, String),
     EditDone(Uuid),
+    LoadedTasks(Vec<Task>),
 }
 
-fn init() -> Model {
+fn init() -> (Model, Vec<Cmd>) {
     let filename = "database.json";
     let mut path = data_dir().expect("no data dir found");
     path.push("cardamom-chai");
     std::fs::create_dir_all(&path).ok();
     path.push(filename);
 
-    let tasks = match std::fs::read_to_string(&path) {
-        Ok(data) => serde_json::from_str(&data).unwrap_or_else(|_| vec![]),
-        Err(_) => vec![],
-    };
-
-    Model {
-        tasks,
-        path,
-        ..Default::default()
-    }
+    (
+        Model {
+            path: path.clone(),
+            ..Default::default()
+        },
+        vec![Cmd::Load(path)],
+    )
 }
 
 fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
     match msg {
+        Msg::LoadedTasks(tasks) => (Model { tasks, ..m }, None),
         Msg::TextInput(task_text) => (
             Model {
                 add_task_text_box: task_text,
@@ -97,7 +96,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             } else if text.ends_with('!') {
                 state = TaskState::Chosen;
                 text = text.trim_end_matches('!').to_string();
-            }  else if text.ends_with('*') {
+            } else if text.ends_with('*') {
                 state = TaskState::Chosen;
             }
 
@@ -495,18 +494,29 @@ struct SyncState {}
 
 enum Cmd {
     Write(PathBuf, Vec<Task>),
+    Load(PathBuf),
 }
 
 fn sync_state_init() -> SyncState {
     SyncState {}
 }
 
-fn run_cmd(cmd: Cmd, _sync_state: &mut SyncState, _tx: chai_tea::ChaiSender<Msg>) {
+fn run_cmd(cmd: Cmd, _sync_state: &mut SyncState, tx: chai_tea::ChaiSender<Msg>) {
     match cmd {
         Cmd::Write(path, tasks) => {
             tokio::spawn(async move {
                 let json = serde_json::to_string_pretty(&tasks).expect("failed to serialize");
                 tokio::fs::write(path, json).await.ok();
+            });
+        }
+
+        Cmd::Load(path) => {
+            tokio::spawn(async move {
+                let tasks = match tokio::fs::read_to_string(&path).await {
+                    Ok(data) => serde_json::from_str(&data).unwrap_or_else(|_| vec![]),
+                    Err(_) => vec![],
+                };
+                tx.send(Msg::LoadedTasks(tasks)).ok();
             });
         }
     }
