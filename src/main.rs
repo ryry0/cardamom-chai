@@ -68,7 +68,7 @@ fn init() -> (Model, Vec<Cmd>) {
             path: path.clone(),
             ..Default::default()
         },
-        vec![Cmd::Load(path)],
+        vec![Cmd::Load(path), Cmd::InitTheme],
     )
 }
 
@@ -241,38 +241,6 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
 }
 
 fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
-    static INIT: std::sync::Once = std::sync::Once::new();
-
-    INIT.call_once(|| {
-        let visuals = egui::Visuals::light();
-        ctx.set_visuals(visuals);
-        let mut style = (*ctx.style()).clone();
-        style.text_styles = [
-            (
-                egui::TextStyle::Heading,
-                egui::FontId::new(24.0, egui::FontFamily::Proportional),
-            ),
-            (
-                egui::TextStyle::Body,
-                egui::FontId::new(15.0, egui::FontFamily::Proportional),
-            ),
-            (
-                egui::TextStyle::Monospace,
-                egui::FontId::new(14.0, egui::FontFamily::Monospace),
-            ),
-            (
-                egui::TextStyle::Button,
-                egui::FontId::new(15.0, egui::FontFamily::Proportional),
-            ),
-            (
-                egui::TextStyle::Small,
-                egui::FontId::new(10.0, egui::FontFamily::Proportional),
-            ),
-        ]
-        .into();
-        ctx.set_style(style);
-    });
-
     egui::SidePanel::left("left_panel")
         .resizable(true)
         .default_width(350.0)
@@ -495,6 +463,7 @@ struct SyncState {}
 enum Cmd {
     Write(PathBuf, Vec<Task>),
     Load(PathBuf),
+    InitTheme,
 }
 
 fn sync_state_init() -> SyncState {
@@ -517,6 +486,39 @@ fn run_cmd(cmd: Cmd, _sync_state: &mut SyncState, tx: chai_tea::ChaiSender<Msg>)
                     Err(_) => vec![],
                 };
                 tx.send(Msg::LoadedTasks(tasks)).ok();
+            });
+        }
+
+        Cmd::InitTheme => {
+            tx.with_ctx(|ctx| {
+                let visuals = egui::Visuals::light();
+                ctx.set_visuals(visuals);
+                let mut style = (*ctx.style()).clone();
+                style.text_styles = [
+                    (
+                        egui::TextStyle::Heading,
+                        egui::FontId::new(24.0, egui::FontFamily::Proportional),
+                    ),
+                    (
+                        egui::TextStyle::Body,
+                        egui::FontId::new(15.0, egui::FontFamily::Proportional),
+                    ),
+                    (
+                        egui::TextStyle::Monospace,
+                        egui::FontId::new(14.0, egui::FontFamily::Monospace),
+                    ),
+                    (
+                        egui::TextStyle::Button,
+                        egui::FontId::new(15.0, egui::FontFamily::Proportional),
+                    ),
+                    (
+                        egui::TextStyle::Small,
+                        egui::FontId::new(10.0, egui::FontFamily::Proportional),
+                    ),
+                ]
+                .into();
+                ctx.set_style(style);
+                ctx.request_repaint();
             });
         }
     }
