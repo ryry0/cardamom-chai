@@ -526,7 +526,6 @@ dependencies = [
 name = "cardamom-chai"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "chai-tea",
  "dirs",
  "eframe",
