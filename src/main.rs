@@ -34,7 +34,6 @@ enum Filter {
 
 #[derive(Default)]
 struct Model {
-    path: PathBuf,
     add_task_text_box: String,
     tasks: Vec<Task>,
     filter: Filter,
@@ -57,19 +56,7 @@ enum Msg {
 }
 
 fn init() -> (Model, Vec<Cmd>) {
-    let filename = "database.json";
-    let mut path = data_dir().expect("no data dir found");
-    path.push("cardamom-chai");
-    std::fs::create_dir_all(&path).ok();
-    path.push(filename);
-
-    (
-        Model {
-            path: path.clone(),
-            ..Default::default()
-        },
-        vec![Cmd::Load(path), Cmd::InitTheme],
-    )
+    (Model::default(), vec![Cmd::Load, Cmd::InitTheme])
 }
 
 fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
@@ -111,10 +98,9 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                 Model {
                     tasks: tasks.clone(),
                     add_task_text_box: "".to_string(),
-                    path: m.path.clone(),
                     ..m
                 },
-                Some(Cmd::Write(m.path.clone(), tasks)),
+                Some(Cmd::Write(tasks)),
             )
         }
 
@@ -129,10 +115,9 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             (
                 Model {
                     tasks: tasks.clone(),
-                    path: m.path.clone(),
                     ..m
                 },
-                Some(Cmd::Write(m.path.clone(), tasks)),
+                Some(Cmd::Write(tasks)),
             )
         }
 
@@ -148,10 +133,9 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             (
                 Model {
                     tasks: tasks.clone(),
-                    path: m.path.clone(),
                     ..m
                 },
-                Some(Cmd::Write(m.path.clone(), tasks)),
+                Some(Cmd::Write(tasks)),
             )
         }
 
@@ -164,10 +148,9 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             (
                 Model {
                     tasks: tasks.clone(),
-                    path: m.path.clone(),
                     ..m
                 },
-                Some(Cmd::Write(m.path.clone(), tasks)),
+                Some(Cmd::Write(tasks)),
             )
         }
 
@@ -188,10 +171,9 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             (
                 Model {
                     tasks: tasks.clone(),
-                    path: m.path.clone(),
                     ..m
                 },
-                Some(Cmd::Write(m.path.clone(), tasks)),
+                Some(Cmd::Write(tasks)),
             )
         }
 
@@ -203,10 +185,9 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             (
                 Model {
                     tasks: tasks.clone(),
-                    path: m.path.clone(),
                     ..m
                 },
-                Some(Cmd::Write(m.path.clone(), tasks)),
+                Some(Cmd::Write(tasks)),
             )
         }
 
@@ -232,10 +213,9 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             if let Some(edit_task) = edit_tasks.iter().position(|t| *t == id) {
                 edit_tasks.remove(edit_task);
             }
-            let path = m.path.clone();
             let tasks = m.tasks.clone();
 
-            (Model { edit_tasks, ..m }, Some(Cmd::Write(path, tasks)))
+            (Model { edit_tasks, ..m }, Some(Cmd::Write(tasks)))
         }
     }
 }
@@ -458,30 +438,40 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
     });
 }
 
-struct SyncState {}
+struct SyncState {
+    path: PathBuf,
+}
 
 enum Cmd {
-    Write(PathBuf, Vec<Task>),
-    Load(PathBuf),
+    Write(Vec<Task>),
+    Load,
     InitTheme,
 }
 
 fn sync_state_init() -> SyncState {
-    SyncState {}
+    let filename = "database.json";
+    let mut path = data_dir().expect("no data dir found");
+    path.push("cardamom-chai");
+    std::fs::create_dir_all(&path).ok();
+    path.push(filename);
+
+    SyncState { path }
 }
 
-fn run_cmd(cmd: Cmd, _sync_state: &mut SyncState, tx: chai_tea::ChaiSender<Msg>) {
+fn run_cmd(cmd: Cmd, sync_state: &mut SyncState, tx: chai_tea::ChaiSender<Msg>) {
     match cmd {
-        Cmd::Write(path, tasks) => {
+        Cmd::Write(tasks) => {
+            let path_write = sync_state.path.clone();
             tokio::spawn(async move {
                 let json = serde_json::to_string_pretty(&tasks).expect("failed to serialize");
-                tokio::fs::write(path, json).await.ok();
+                tokio::fs::write(path_write, json).await.ok();
             });
         }
 
-        Cmd::Load(path) => {
+        Cmd::Load => {
+            let path_load = sync_state.path.clone();
             tokio::spawn(async move {
-                let tasks = match tokio::fs::read_to_string(&path).await {
+                let tasks = match tokio::fs::read_to_string(&path_load).await {
                     Ok(data) => serde_json::from_str(&data).unwrap_or_else(|_| vec![]),
                     Err(_) => vec![],
                 };
