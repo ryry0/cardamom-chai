@@ -350,7 +350,8 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                                 let mut edit_task_text_box = task.task_text.clone();
                                 let _ = ui.checkbox(&mut checked, "");
                                 let response =
-                                    ui.add(egui::TextEdit::singleline(&mut edit_task_text_box));
+                                    ui.add(egui::TextEdit::singleline(&mut edit_task_text_box)
+                                        .desired_width(f32::INFINITY));
 
                                 if response.changed() {
                                     tx.push(Msg::EditInput(task.task_id, edit_task_text_box));
