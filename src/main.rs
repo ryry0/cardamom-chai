@@ -370,7 +370,7 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                                     tx.push(Msg::CheckBox(task.task_id, checked));
                                 }
 
-                                if check_response.double_clicked() {
+                                if check_response.middle_clicked() {
                                     tx.push(Msg::Edit(task.task_id));
                                 }
 
