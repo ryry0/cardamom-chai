@@ -59,16 +59,16 @@ fn init() -> (Model, Vec<Cmd>) {
     (Model::default(), vec![Cmd::Load, Cmd::InitTheme])
 }
 
-fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
+fn update(m: Model, msg: Msg) -> (Model, Vec<Cmd>) {
     match msg {
-        Msg::LoadedTasks(tasks) => (Model { tasks, ..m }, None),
+        Msg::LoadedTasks(tasks) => (Model { tasks, ..m }, vec![]),
         Msg::TextInput(task_text) => (
             Model {
                 add_task_text_box: task_text,
 
                 ..m
             },
-            None,
+            vec![],
         ),
 
         Msg::Add => {
@@ -100,7 +100,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                     add_task_text_box: "".to_string(),
                     ..m
                 },
-                Some(Cmd::Write(tasks)),
+                vec![Cmd::Write(tasks)],
             )
         }
 
@@ -117,7 +117,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                Some(Cmd::Write(tasks)),
+                vec![Cmd::Write(tasks)],
             )
         }
 
@@ -135,7 +135,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                Some(Cmd::Write(tasks)),
+                vec![Cmd::Write(tasks)],
             )
         }
 
@@ -150,7 +150,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                Some(Cmd::Write(tasks)),
+                vec![Cmd::Write(tasks)],
             )
         }
 
@@ -173,7 +173,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                Some(Cmd::Write(tasks)),
+                vec![Cmd::Write(tasks)],
             )
         }
 
@@ -187,16 +187,16 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                Some(Cmd::Write(tasks)),
+                vec![Cmd::Write(tasks)],
             )
         }
 
-        Msg::SetFilter(filter) => (Model { filter, ..m }, None),
+        Msg::SetFilter(filter) => (Model { filter, ..m }, vec![]),
 
         Msg::Edit(id) => {
             let mut edit_tasks = m.edit_tasks;
             edit_tasks.push(id);
-            (Model { edit_tasks, ..m }, None)
+            (Model { edit_tasks, ..m }, vec![])
         }
 
         Msg::EditInput(id, new_text) => {
@@ -205,7 +205,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
                 task.task_text = new_text;
             }
 
-            (Model { tasks, ..m }, None)
+            (Model { tasks, ..m }, vec![])
         }
 
         Msg::EditDone(id) => {
@@ -215,7 +215,7 @@ fn update(m: Model, msg: Msg) -> (Model, Option<Cmd>) {
             }
             let tasks = m.tasks.clone();
 
-            (Model { edit_tasks, ..m }, Some(Cmd::Write(tasks)))
+            (Model { edit_tasks, ..m }, vec![Cmd::Write(tasks)])
         }
     }
 }
@@ -349,9 +349,10 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                             if m.edit_tasks.contains(&task.task_id) {
                                 let mut edit_task_text_box = task.task_text.clone();
                                 let _ = ui.checkbox(&mut checked, "");
-                                let response =
-                                    ui.add(egui::TextEdit::singleline(&mut edit_task_text_box)
-                                        .desired_width(700.0));
+                                let response = ui.add(
+                                    egui::TextEdit::singleline(&mut edit_task_text_box)
+                                        .desired_width(700.0),
+                                );
 
                                 if response.changed() {
                                     tx.push(Msg::EditInput(task.task_id, edit_task_text_box));
