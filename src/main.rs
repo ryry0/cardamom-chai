@@ -33,11 +33,20 @@ enum Filter {
 }
 
 #[derive(Default)]
+enum NotesState {
+    #[default]
+    Display,
+    Edit,
+}
+
+#[derive(Default)]
 struct Model {
     add_task_text_box: String,
     tasks: Vec<Task>,
     filter: Filter,
     edit_tasks: Vec<Uuid>,
+    notes: String,
+    notes_state: NotesState,
 }
 
 enum Msg {
@@ -53,15 +62,23 @@ enum Msg {
     EditInput(Uuid, String),
     EditDone(Uuid),
     LoadedTasks(Vec<Task>),
+    LoadedNotes(String),
+    EditNote,
+    EditNoteInput(String),
+    EditNoteDone,
 }
 
 fn init() -> (Model, Vec<Cmd>) {
-    (Model::default(), vec![Cmd::Load, Cmd::InitTheme])
+    (
+        Model::default(),
+        vec![Cmd::LoadTasks, Cmd::LoadNotes, Cmd::InitTheme],
+    )
 }
 
 fn update(m: Model, msg: Msg) -> (Model, Vec<Cmd>) {
     match msg {
         Msg::LoadedTasks(tasks) => (Model { tasks, ..m }, vec![]),
+        Msg::LoadedNotes(notes) => (Model { notes, ..m }, vec![]),
         Msg::TextInput(task_text) => (
             Model {
                 add_task_text_box: task_text,
@@ -100,7 +117,7 @@ fn update(m: Model, msg: Msg) -> (Model, Vec<Cmd>) {
                     add_task_text_box: "".to_string(),
                     ..m
                 },
-                vec![Cmd::Write(tasks)],
+                vec![Cmd::WriteTasks(tasks)],
             )
         }
 
@@ -117,7 +134,7 @@ fn update(m: Model, msg: Msg) -> (Model, Vec<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                vec![Cmd::Write(tasks)],
+                vec![Cmd::WriteTasks(tasks)],
             )
         }
 
@@ -135,7 +152,7 @@ fn update(m: Model, msg: Msg) -> (Model, Vec<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                vec![Cmd::Write(tasks)],
+                vec![Cmd::WriteTasks(tasks)],
             )
         }
 
@@ -150,7 +167,7 @@ fn update(m: Model, msg: Msg) -> (Model, Vec<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                vec![Cmd::Write(tasks)],
+                vec![Cmd::WriteTasks(tasks)],
             )
         }
 
@@ -173,7 +190,7 @@ fn update(m: Model, msg: Msg) -> (Model, Vec<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                vec![Cmd::Write(tasks)],
+                vec![Cmd::WriteTasks(tasks)],
             )
         }
 
@@ -187,7 +204,7 @@ fn update(m: Model, msg: Msg) -> (Model, Vec<Cmd>) {
                     tasks: tasks.clone(),
                     ..m
                 },
-                vec![Cmd::Write(tasks)],
+                vec![Cmd::WriteTasks(tasks)],
             )
         }
 
@@ -215,7 +232,28 @@ fn update(m: Model, msg: Msg) -> (Model, Vec<Cmd>) {
             }
             let tasks = m.tasks.clone();
 
-            (Model { edit_tasks, ..m }, vec![Cmd::Write(tasks)])
+            (Model { edit_tasks, ..m }, vec![Cmd::WriteTasks(tasks)])
+        }
+
+        Msg::EditNote => (
+            Model {
+                notes_state: NotesState::Edit,
+                ..m
+            },
+            vec![],
+        ),
+
+        Msg::EditNoteInput(notes) => (Model { notes, ..m }, vec![]),
+
+        Msg::EditNoteDone => {
+            let notes = m.notes.clone();
+            (
+                Model {
+                    notes_state: NotesState::Display,
+                    ..m
+                },
+                vec![Cmd::WriteNotes(notes)],
+            )
         }
     }
 }
@@ -229,9 +267,47 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
 
     egui::SidePanel::right("right_panel")
         .resizable(true)
-        .default_width(350.0)
+        .default_width(300.0)
         .width_range(80.0..=350.0)
-        .show(ctx, |_ui| {});
+        .show(ctx, |ui| {
+            ui.add_space(10.0);
+            ui.take_available_space();
+            let response = ui.label(RichText::new("Notes").strong().size(17.0));
+            if response.middle_clicked() {
+                match m.notes_state {
+                    NotesState::Display => tx.push(Msg::EditNote),
+                    NotesState::Edit => tx.push(Msg::EditNoteDone),
+                }
+            }
+
+            match m.notes_state {
+                NotesState::Display => {
+                    let mut cache = egui_commonmark::CommonMarkCache::default();
+                    egui_commonmark::CommonMarkViewer::new().show(ui, &mut cache, &m.notes);
+                }
+
+                NotesState::Edit => {
+                    let mut notes_text_box = m.notes.clone();
+                    let response = ui.add(egui::TextEdit::multiline(&mut notes_text_box));
+
+                    if response.changed() {
+                        tx.push(Msg::EditNoteInput(notes_text_box));
+                    }
+
+                    if response.has_focus() {
+                        ui.input(|i| {
+                            if i.key_pressed(egui::Key::Enter) && i.modifiers.ctrl {
+                                tx.push(Msg::EditNoteDone);
+                            }
+                        });
+                    }
+
+                    if ui.button("save").clicked() {
+                        tx.push(Msg::EditNoteDone);
+                    }
+                }
+            }
+        });
 
     egui::TopBottomPanel::bottom("bottom_panel")
         .resizable(false)
@@ -399,7 +475,10 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                 });
         });
         //hotkeys
-        if !add_task_text_box_has_focus && !task_edit_box_has_focus {
+        if !add_task_text_box_has_focus
+            && !task_edit_box_has_focus
+            && !matches!(m.notes_state, NotesState::Edit)
+        {
             if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 ui.memory_mut(|mem| mem.request_focus(text_edit_id));
             }
@@ -441,43 +520,67 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
 }
 
 struct SyncState {
-    path: PathBuf,
+    tasks_path: PathBuf,
+    notes_path: PathBuf,
 }
 
 enum Cmd {
-    Write(Vec<Task>),
-    Load,
+    WriteTasks(Vec<Task>),
+    LoadTasks,
+    WriteNotes(String),
+    LoadNotes,
     InitTheme,
 }
 
 fn sync_state_init() -> SyncState {
-    let filename = "database.json";
+    let task_database_filename = "database.json";
+    let notes_database_filename = "notes-database.json";
     let mut path = data_dir().expect("no data dir found");
     path.push("cardamom-chai");
     std::fs::create_dir_all(&path).ok();
-    path.push(filename);
+    let tasks_path = path.join(task_database_filename);
+    let notes_path = path.join(notes_database_filename);
 
-    SyncState { path }
+    SyncState {
+        tasks_path,
+        notes_path,
+    }
 }
 
 fn run_cmd(cmd: Cmd, sync_state: &mut SyncState, tx: chai_tea::ChaiSender<Msg>) {
     match cmd {
-        Cmd::Write(tasks) => {
-            let path_write = sync_state.path.clone();
+        Cmd::WriteTasks(tasks) => {
+            let path_write = sync_state.tasks_path.clone();
             tokio::spawn(async move {
                 let json = serde_json::to_string_pretty(&tasks).expect("failed to serialize");
                 tokio::fs::write(path_write, json).await.ok();
             });
         }
 
-        Cmd::Load => {
-            let path_load = sync_state.path.clone();
+        Cmd::LoadTasks => {
+            let path_load = sync_state.tasks_path.clone();
             tokio::spawn(async move {
                 let tasks = match tokio::fs::read_to_string(&path_load).await {
                     Ok(data) => serde_json::from_str(&data).unwrap_or_else(|_| vec![]),
                     Err(_) => vec![],
                 };
                 tx.send(Msg::LoadedTasks(tasks)).ok();
+            });
+        }
+
+        Cmd::WriteNotes(notes) => {
+            let path_write = sync_state.notes_path.clone();
+            tokio::spawn(async move {
+                tokio::fs::write(path_write, notes).await.ok();
+            });
+        }
+
+        Cmd::LoadNotes => {
+            let path_load = sync_state.notes_path.clone();
+            tokio::spawn(async move {
+                let notes = (tokio::fs::read_to_string(&path_load).await).unwrap_or_default();
+
+                tx.send(Msg::LoadedNotes(notes)).ok();
             });
         }
 
