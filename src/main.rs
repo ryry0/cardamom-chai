@@ -279,34 +279,35 @@ fn view(ctx: &egui::Context, m: &Model, tx: &mut Vec<Msg>) {
                     NotesState::Edit => tx.push(Msg::EditNoteDone),
                 }
             }
-
-            match m.notes_state {
-                NotesState::Display => {
-                    let mut cache = egui_commonmark::CommonMarkCache::default();
-                    egui_commonmark::CommonMarkViewer::new().show(ui, &mut cache, &m.notes);
-                }
-
-                NotesState::Edit => {
-                    let mut notes_text_box = m.notes.clone();
-                    let response = ui.add(egui::TextEdit::multiline(&mut notes_text_box));
-
-                    if response.changed() {
-                        tx.push(Msg::EditNoteInput(notes_text_box));
+            egui::ScrollArea::vertical()
+                .auto_shrink(false)
+                .show(ui, |ui| match m.notes_state {
+                    NotesState::Display => {
+                        let mut cache = egui_commonmark::CommonMarkCache::default();
+                        egui_commonmark::CommonMarkViewer::new().show(ui, &mut cache, &m.notes);
                     }
 
-                    if response.has_focus() {
-                        ui.input(|i| {
-                            if i.key_pressed(egui::Key::Enter) && i.modifiers.ctrl {
-                                tx.push(Msg::EditNoteDone);
-                            }
-                        });
-                    }
+                    NotesState::Edit => {
+                        let mut notes_text_box = m.notes.clone();
+                        let response = ui.add(egui::TextEdit::multiline(&mut notes_text_box));
 
-                    if ui.button("save").clicked() {
-                        tx.push(Msg::EditNoteDone);
+                        if response.changed() {
+                            tx.push(Msg::EditNoteInput(notes_text_box));
+                        }
+
+                        if response.has_focus() {
+                            ui.input(|i| {
+                                if i.key_pressed(egui::Key::Enter) && i.modifiers.ctrl {
+                                    tx.push(Msg::EditNoteDone);
+                                }
+                            });
+                        }
+
+                        if ui.button("save").clicked() {
+                            tx.push(Msg::EditNoteDone);
+                        }
                     }
-                }
-            }
+                });
         });
 
     egui::TopBottomPanel::bottom("bottom_panel")
